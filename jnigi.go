@@ -252,7 +252,7 @@ func (j *Env) callFindClass(className string) (jclass, error) {
 	if class == 0 {
 		return 0, j.handleException()
 	}
-	ref := newGlobalRef(j.jniEnv, jobject(class))
+	ref := newGlobalRef(j.jniEnv, newLocalRef(j.jniEnv, jobject(class)))
 	deleteLocalRef(j.jniEnv, jobject(class))
 	j.classCache[className] = jclass(ref)
 	

@@ -1614,7 +1614,7 @@ func (j *Env) RegisterNative(className, methodName string, returnType interface{
 }
 
 func (j *Env) NewGlobalRef(o *ObjectRef) *ObjectRef {
-	g := newGlobalRef(j.jniEnv, o.jobject)
+	g := newGlobalRef(j.jniEnv, newLocalRef(j.jniEnv, o.jobject))
 	return &ObjectRef{g, o.className, o.isArray}
 }
 
@@ -1669,7 +1669,7 @@ func (j *Env) GetUTF8String() *ObjectRef {
 		if local == 0 {
 			panic(j.handleException())
 		}
-		global := jstring(newGlobalRef(j.jniEnv, jobject(local)))
+		global := jstring(newGlobalRef(j.jniEnv, newLocalRef(j.jniEnv, jobject(local))))
 		deleteLocalRef(j.jniEnv, jobject(local))
 		free(cStr)
 		utf8 = &ObjectRef{jobject: jobject(global), isArray: false, className: "java/lang/String"}

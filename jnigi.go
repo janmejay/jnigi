@@ -255,8 +255,30 @@ func (j *Env) callFindClass(className string) (jclass, error) {
 	ref := newGlobalRef(j.jniEnv, newLocalRef(j.jniEnv, jobject(class)))
 	deleteLocalRef(j.jniEnv, jobject(class))
 	j.classCache[className] = jclass(ref)
-	
+
 	return jclass(ref), nil
+}
+
+func (j *Env) ThrowNew(className string, throwErr error) error {
+	if throwErr == nil {
+		return nil
+	}
+
+	class, err := j.callFindClass(className)
+	if err != nil {
+		return err
+	}
+	messageCstr := cString(throwErr.Error())
+	defer free(messageCstr)
+
+	ret := throwNew(j.jniEnv, class, messageCstr)
+	if ret != 0 {
+		return fmt.Errorf(
+			"Could not throw (%v), error: %v",
+			throwErr,
+			j.handleException())
+	}
+	return nil
 }
 
 func (j *Env) callGetMethodID(static bool, class jclass, name, sig string) (jmethodID, error) {

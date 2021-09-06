@@ -491,6 +491,13 @@ func (j *Env) NewByteArrayFromObject(o *ObjectRef) *ByteArray {
 	return ba
 }
 
+func (j *Env) NewByteArrayFromJByteArray(ba uintptr) *ByteArray {
+	b := &ByteArray{}
+	b.arr = jbyteArray(ba)
+	b.n = int(getArrayLength(j.jniEnv, jarray(ba)))
+	return b
+}
+
 func (b *ByteArray) jobj() jobject {
 	return jobject(b.arr)
 }

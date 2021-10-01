@@ -36,6 +36,10 @@ import (
 	"errors"
 )
 
+type LibJVMPtr struct {
+	p unsafe.Pointer
+}
+
 func jni_GetDefaultJavaVMInitArgs(args unsafe.Pointer) jint {
 	return jint(C.dyn_JNI_GetDefaultJavaVMInitArgs((unsafe.Pointer)(args)))
 }
@@ -44,28 +48,43 @@ func jni_CreateJavaVM(pvm unsafe.Pointer, penv unsafe.Pointer, args unsafe.Point
 	return jint(C.dyn_JNI_CreateJavaVM((**C.JavaVM)(pvm), (*unsafe.Pointer)(penv), (unsafe.Pointer)(args)))
 }
 
-func LoadJVMLib(jvmLibPath string) error {
+func unloadLibJvm(p unsafe.Pointer) error {
+	ret := C.dlclose(p)
+	if ret != 0 {
+		return errors.New("could not unload libjvm")
+	}
+	return nil
+}
+
+func (p *LibJVMPtr) Unload() error {
+	return unloadLibJvm(unsafe.Pointer(p.p))
+}
+
+func LoadJVMLib(jvmLibPath string) (*LibJVMPtr, error) {
 	cs := cString(jvmLibPath)
 	defer free(cs)
 	libHandle := uintptr(C.dlopen((*C.char)(cs), C.RTLD_NOW|C.RTLD_GLOBAL))
 	if libHandle == 0 {
-		return errors.New("could not dynamically load libjvm.so")
+		return nil, errors.New("could not dynamically load libjvm.so")
 	}
+	libHandlePtr := unsafe.Pointer(libHandle)
 
 	cs2 := cString("JNI_GetDefaultJavaVMInitArgs")
 	defer free(cs2)
-	ptr := C.dlsym(unsafe.Pointer(libHandle), (*C.char)(cs2))
+	ptr := C.dlsym(libHandlePtr, (*C.char)(cs2))
 	if ptr == nil {
-		return errors.New("could not find JNI_GetDefaultJavaVMInitArgs in libjvm.so")
+		unloadLibJvm(libHandlePtr)
+		return nil, errors.New("could not find JNI_GetDefaultJavaVMInitArgs in libjvm.so")
 	}
 	C.var_JNI_GetDefaultJavaVMInitArgs = C.type_JNI_GetDefaultJavaVMInitArgs(ptr)
 
 	cs3 := cString("JNI_CreateJavaVM")
 	defer free(cs3)
-	ptr = C.dlsym(unsafe.Pointer(libHandle), (*C.char)(cs3))
+	ptr = C.dlsym(libHandlePtr, (*C.char)(cs3))
 	if ptr == nil {
-		return errors.New("could not find JNI_CreateJavaVM in libjvm.so")
+		unloadLibJvm(libHandlePtr)
+		return nil, errors.New("could not find JNI_CreateJavaVM in libjvm.so")
 	}
 	C.var_JNI_CreateJavaVM = C.type_JNI_CreateJavaVM(ptr)
-	return nil
+	return &LibJVMPtr{p: libHandlePtr}, nil
 }

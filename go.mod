@@ -1,3 +1,3 @@
-module tekao.net/jnigi
+module github.com/janmejay/jnigi
 
 go 1.12

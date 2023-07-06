@@ -310,7 +310,7 @@ func (j *Env) NoReturnConvert() {
 	j.noReturnConvert = true
 }
 
-const big = 1024 * 1024 * 100
+const big = 1024 * 1024 * 1024 * 2 - 1
 
 func (j *Env) FromObjectArray(objRef *ObjectRef) []*ObjectRef {
 	len := int(getArrayLength(j.jniEnv, jarray(objRef.jobject)))

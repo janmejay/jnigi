@@ -45,3 +45,7 @@ func free(ptr unsafe.Pointer) {
 func cString(in string) unsafe.Pointer {
 	return unsafe.Pointer(C.CString(in))
 }
+
+func cGoBytes(ptr unsafe.Pointer, len int) []byte {
+	return C.GoBytes(ptr, C.int(len))
+}

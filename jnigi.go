@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"unsafe"
 	"strings"
+	"unsafe"
 )
 
 // copy arguments in to C memory before passing to jni functions
@@ -35,6 +35,10 @@ type ObjectRef struct {
 
 func WrapJObject(jobj uintptr, className string, isArray bool) *ObjectRef {
 	return &ObjectRef{jobject(jobj), className, isArray}
+}
+
+func WrapByteBuff(jobj uintptr) *ObjectRef {
+	return &ObjectRef{jobject(jobj), byteBuffClassName, false}
 }
 
 func (o *ObjectRef) Cast(className string) *ObjectRef {
@@ -142,10 +146,10 @@ func (j *JVM) DetachCurrentThread() error {
 }
 
 func (j *JVM) Destroy() error {
- 	if destroyJavaVM(j.javaVM) < 0 {
- 		return errors.New("JNIGI: destroyJavaVM error")
- 	}
- 	return nil
+	if destroyJavaVM(j.javaVM) < 0 {
+		return errors.New("JNIGI: destroyJavaVM error")
+	}
+	return nil
 }
 
 func (j *Env) GetJVM() (*JVM, error) {
@@ -241,7 +245,6 @@ func (j *Env) NewObject(className string, args ...interface{}) (*ObjectRef, erro
 	return &ObjectRef{obj, className, false}, nil
 }
 
-
 func (j *Env) callFindClass(className string) (jclass, error) {
 	if v, ok := j.classCache[className]; ok {
 		return v, nil
@@ -310,7 +313,7 @@ func (j *Env) NoReturnConvert() {
 	j.noReturnConvert = true
 }
 
-const big = 1024 * 1024 * 1024 * 2 - 1
+const big = 1024*1024*1024*2 - 1
 
 func (j *Env) FromObjectArray(objRef *ObjectRef) []*ObjectRef {
 	len := int(getArrayLength(j.jniEnv, jarray(objRef.jobject)))
@@ -466,7 +469,7 @@ func (j *Env) ToObjectArray(objRefs []*ObjectRef, className string) (arrayRef *O
 
 type ByteArray struct {
 	arr jbyteArray
-	n int
+	n   int
 }
 
 func (j *Env) NewByteArray(n int) *ByteArray {
@@ -522,7 +525,7 @@ func (b *ByteArray) ReleaseCritical(env *Env, bytes []byte) {
 	releasePrimitiveArrayCritical(env.jniEnv, jarray(b.arr), ptr, 0)
 }
 
-//returns jlo
+// returns jlo
 func (b *ByteArray) GetObject() *ObjectRef {
 	return &ObjectRef{jobject(b.arr), "java/lang/Object", false}
 }
@@ -582,7 +585,7 @@ func (j *Env) toJavaArray(src interface{}) (jobject, error) {
 		var ptr unsafe.Pointer
 		if copyToC {
 			ptr = malloc(uintptr(len(v)))
-		    defer free(ptr)
+			defer free(ptr)
 			data := (*(*[big]byte)(ptr))[:len(v)]
 			copy(data, v)
 		} else {
@@ -646,7 +649,7 @@ func (j *Env) toJavaArray(src interface{}) (jobject, error) {
 			return jobject(array), nil
 		}
 		var ptr unsafe.Pointer
-		if copyToC {		
+		if copyToC {
 			ptr = malloc(unsafe.Sizeof(int32(0)) * uintptr(len(v)))
 			defer free(ptr)
 			data := (*(*[big]int32)(ptr))[:len(v)]
@@ -723,14 +726,14 @@ func (j *Env) toJavaArray(src interface{}) (jobject, error) {
 			ptr = malloc(unsafe.Sizeof(float32(0)) * uintptr(len(v)))
 			defer free(ptr)
 			data := (*(*[big]float32)(ptr))[:len(v)]
-			copy(data, v)	
+			copy(data, v)
 		} else {
 			ptr = unsafe.Pointer(&v[0])
 		}
 		setFloatArrayRegion(j.jniEnv, array, jsize(0), jsize(len(v)), ptr)
 		if j.exceptionCheck() {
 			return 0, j.handleException()
-		}		
+		}
 		return jobject(array), nil
 	case []float64:
 		array := newDoubleArray(j.jniEnv, jsize(len(v)))
@@ -752,7 +755,7 @@ func (j *Env) toJavaArray(src interface{}) (jobject, error) {
 		setDoubleArrayRegion(j.jniEnv, array, jsize(0), jsize(len(v)), ptr)
 		if j.exceptionCheck() {
 			return 0, j.handleException()
-		}		
+		}
 		return jobject(array), nil
 	default:
 		return 0, errors.New("JNIGI unsupported array type")
@@ -822,7 +825,7 @@ func (j *Env) createArgs(args []interface{}) (ptr unsafe.Pointer, refs []jobject
 	if copyToC {
 		ptr = malloc(unsafe.Sizeof(uint64(0)) * uintptr(len(args)))
 		data := (*(*[big]uint64)(ptr))[:len(args)]
-		copy(data, argList)	
+		copy(data, argList)
 	} else {
 		ptr = unsafe.Pointer(&argList[0])
 	}
@@ -1027,7 +1030,7 @@ func (o *ObjectRef) getClass(env *Env) (class jclass, err error) {
 			return 0, errors.New("unexpected error getting object class name")
 		}
 		defer env.DeleteLocalRef(strObj)
-		b , err := strObj.CallMethod(env, "getBytes", Byte | Array, env.GetUTF8String())
+		b, err := strObj.CallMethod(env, "getBytes", Byte|Array, env.GetUTF8String())
 		if err != nil {
 			return 0, err
 		}
@@ -1705,6 +1708,66 @@ func (j *Env) GetUTF8String() *ObjectRef {
 	}
 
 	return utf8
+}
+
+const byteBuffClassName = "java/nio/ByteBuffer"
+
+// create new direct-allocated byte-buffer pointed to given slice
+// calling code must keep the given byte-slice pinned
+func (j *Env) NewDirectByteBuffer(
+	buff []byte,
+) (*ObjectRef, error) {
+	uPtr := unsafe.Pointer(&buff[0])
+	size := len(buff)
+	buffObj := newDirectByteBuffer(j.jniEnv, uPtr, jlong(size))
+	if buffObj == 0 {
+		return nil, fmt.Errorf("Direct-byte-buff creation failed")
+	}
+	return WrapByteBuff(uintptr(buffObj)), nil
+}
+
+// retrive address a given direct byte-buff is pointed to
+func (j *Env) GetDirectBufferAddress(
+	buff *ObjectRef,
+) (unsafe.Pointer, error) {
+	if buff.className != byteBuffClassName {
+		return nil, fmt.Errorf("Object %s not a byte-buffer", &buff.className)
+	}
+	addr := getDirectBufferAddress(j.jniEnv, buff.jobject)
+	if addr == nil {
+		return nil, fmt.Errorf("Found null address in direct-buff %+v", buff)
+	}
+	return addr, nil
+}
+
+// retrive capacity of given direct byte-buff
+func (j *Env) GetDirectBufferCapacity(
+	buff *ObjectRef,
+) (int64, error) {
+	if buff.className != byteBuffClassName {
+		return -1, fmt.Errorf("Object %s not a byte-buffer", &buff.className)
+	}
+	capacity := getDirectBufferCapacity(j.jniEnv, buff.jobject)
+	if capacity < 0 {
+		return int64(capacity), fmt.Errorf("Found capacity %d, not a direct obj?", capacity)
+	}
+	return int64(capacity), nil
+}
+
+// retrive byte-slice to address pointed to by given byte-buff
+func (j *Env) GetBuffBytes(
+	buff *ObjectRef,
+) ([]byte, error) {
+	ptr, err := j.GetDirectBufferAddress(buff)
+	if err != nil {
+		return nil, err
+	}
+	len, err := j.GetDirectBufferCapacity(buff)
+	if err != nil {
+		return nil, err
+	}
+
+	return cGoBytes(ptr, int(len)), nil
 }
 
 // StackTraceElement is a struct holding the contents of java.lang.StackTraceElement

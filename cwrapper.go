@@ -622,6 +622,18 @@ void CallNonvirtualVoidMethodA(JNIEnv* env, jobject obj, jclass clazz, jmethodID
 	(*env)->CallNonvirtualVoidMethodA (env, obj, clazz, methodID, args);
 }
 
+jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
+	return (*env)->NewDirectByteBuffer(env, address, capacity);
+}
+
+void* GetDirectBufferAddress(JNIEnv* env, jobject buf) {
+	return (*env)->GetDirectBufferAddress(env, buf);
+}
+
+jlong GetDirectBufferCapacity(JNIEnv* env, jobject buf) {
+	return (*env)->GetDirectBufferCapacity(env, buf);
+}
+
 */
 import "C"
 
@@ -1235,7 +1247,7 @@ func destroyJavaVM(vm unsafe.Pointer) jint {
 
 func getJavaVM(env unsafe.Pointer, vm unsafe.Pointer) jint {
 	return jint(C.GetJavaVM((*C.JNIEnv)(env), (**C.JavaVM)(vm)))
-} 
+}
 
 /* CallNonvirtual funcs... */
 
@@ -1277,4 +1289,16 @@ func callNonvirtualDoubleMethodA(env unsafe.Pointer, obj jobject, clazz jclass, 
 
 func callNonvirtualVoidMethodA(env unsafe.Pointer, obj jobject, clazz jclass, methodID jmethodID, args unsafe.Pointer) {
 	C.CallNonvirtualVoidMethodA((*C.JNIEnv)(env), C.jobject(unsafe.Pointer(obj)), C.jclass(unsafe.Pointer(clazz)), C.jmethodID(unsafe.Pointer(methodID)), (*C.jvalue)(args))
+}
+
+func newDirectByteBuffer(env unsafe.Pointer, address unsafe.Pointer, size jlong) jobject {
+	return jobject(unsafe.Pointer(C.NewDirectByteBuffer((*C.JNIEnv)(env), address, C.jlong(size))))
+}
+
+func getDirectBufferAddress(env unsafe.Pointer, buffer jobject) unsafe.Pointer {
+	return unsafe.Pointer(C.GetDirectBufferAddress((*C.JNIEnv)(env), C.jobject(buffer)))
+}
+
+func getDirectBufferCapacity(env unsafe.Pointer, buffer jobject) jlong {
+	return jlong(C.GetDirectBufferCapacity((*C.JNIEnv)(env), C.jobject(buffer)))
 }

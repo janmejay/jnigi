@@ -2014,6 +2014,26 @@ func NewThrowableErrorFromObject(env *Env, throwable *ObjectRef) (*ThrowableErro
 	return out, nil
 }
 
+func toStringExceptionHandler(describe bool) func(*Env, *ObjectRef) error {
+	return func(env *Env, exception *ObjectRef) error {
+		if describe {
+			exceptionDescribe(env.jniEnv)
+		}
+		exceptionClear(env.jniEnv)
+		if exception.IsNil() {
+			return errThrowableConvertFail
+		}
+		msg := "Java exception occured"
+		callStringMethodAndAssign(env, exception, "toString", func(s string) {
+			if s == "" {
+				return
+			}
+			msg = s
+		})
+		return errors.New(msg)
+	}
+}
+
 var (
 	errThrowableConvertFail = fmt.Errorf("Java exception occured")
 
@@ -2030,20 +2050,13 @@ var (
 	// ThrowableToStringExceptionHandler calls ToString on the exception and returns an error
 	// with the returned value as its Error message.
 	// If exception is nil or the toString() call fails, a generic default error is returned.
-	ThrowableToStringExceptionHandler ExceptionHandler = ExceptionHandlerFunc(func(env *Env, exception *ObjectRef) error {
-		exceptionClear(env.jniEnv)
-		if exception.IsNil() {
-			return errThrowableConvertFail
-		}
-		msg := "Java exception occured"
-		callStringMethodAndAssign(env, exception, "toString", func(s string) {
-			if s == "" {
-				return
-			}
-			msg = s
-		})
-		return errors.New(msg)
-	})
+	ThrowableToStringExceptionHandler ExceptionHandler = ExceptionHandlerFunc(toStringExceptionHandler(false))
+
+	// DescribingToStringExceptionHandler calls ToString on the exception and returns an error
+	// with the returned value as its Error message but additionally also describes
+	// exception on stderr.
+	// If exception is nil or the toString() call fails, a generic default error is returned.
+	DescribingToStringExceptionHandler ExceptionHandler = ExceptionHandlerFunc(toStringExceptionHandler(true))
 
 	// ThrowableErrorExceptionHandler populates a new ThrowableError with the values of exception.
 	// If exception is nil, the getClass().getName(), or the toString call fails, a generic default

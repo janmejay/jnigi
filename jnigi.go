@@ -38,7 +38,7 @@ func WrapJObject(jobj uintptr, className string, isArray bool) *ObjectRef {
 }
 
 func WrapByteBuff(jobj uintptr) *ObjectRef {
-	return &ObjectRef{jobject(jobj), byteBuffClassName, false}
+	return WrapJObject(jobj, byteBuffClassName, false)
 }
 
 func (o *ObjectRef) Cast(className string) *ObjectRef {
@@ -1712,16 +1712,23 @@ func (j *Env) GetUTF8String() *ObjectRef {
 
 const byteBuffClassName = "java/nio/ByteBuffer"
 
+var nilBufferErr error = errors.New("Nil buffer")
+var nilSliceErr error = errors.New("Nil byte-slice")
+var nullBufferAddrErr error = errors.New("Buffer address NULL")
+
 // create new direct-allocated byte-buffer pointed to given slice
 // calling code must keep the given byte-slice pinned
 func (j *Env) NewDirectByteBuffer(
 	buff []byte,
 ) (*ObjectRef, error) {
+	if buff == nil {
+		return nil, nilSliceErr
+	}
 	uPtr := unsafe.Pointer(&buff[0])
 	size := len(buff)
 	buffObj := newDirectByteBuffer(j.jniEnv, uPtr, jlong(size))
 	if buffObj == 0 {
-		return nil, fmt.Errorf("Direct-byte-buff creation failed")
+		return nil, errors.New("Direct-byte-buff creation failed")
 	}
 	return WrapByteBuff(uintptr(buffObj)), nil
 }
@@ -1730,8 +1737,14 @@ func (j *Env) NewDirectByteBuffer(
 func (j *Env) GetDirectBufferAddress(
 	buff *ObjectRef,
 ) (unsafe.Pointer, error) {
+	if buff == nil {
+		return nil, nilBufferErr
+	}
 	if buff.className != byteBuffClassName {
 		return nil, fmt.Errorf("Object %s not a byte-buffer", &buff.className)
+	}
+	if buff.jobject == 0 {
+		return nil, nullBufferAddrErr
 	}
 	addr := getDirectBufferAddress(j.jniEnv, buff.jobject)
 	if addr == nil {
@@ -1744,8 +1757,14 @@ func (j *Env) GetDirectBufferAddress(
 func (j *Env) GetDirectBufferCapacity(
 	buff *ObjectRef,
 ) (int64, error) {
+	if buff == nil {
+		return 0, nilBufferErr
+	}
 	if buff.className != byteBuffClassName {
 		return -1, fmt.Errorf("Object %s not a byte-buffer", &buff.className)
+	}
+	if buff.jobject == 0 {
+		return -1, nullBufferAddrErr
 	}
 	capacity := getDirectBufferCapacity(j.jniEnv, buff.jobject)
 	if capacity < 0 {
